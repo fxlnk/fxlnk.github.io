@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting to FoxLINK...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+        h2 {
+            color: #ff5722;
+        }
+        a {
+            color: #ff5722;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="content">
+        <h2>FoxLINK</h2>
+        <p>Taking you to your destination...</p>
+    </div>
+
+    <script>
+        async function handleRedirect() {
+            // 1. Get the link ID from the URL path (e.g., "/fox" -> "fox")
+            const linkID = window.location.pathname.replace(/^\/+/, '');
+            
+            // If it's just the root page, redirect to home
+            if (!linkID || linkID === 'index.html' || linkID === '404.html') {
+                window.location.href = '/';
+                return;
+            }
+
+            // 2. Your Google Apps Script Web App API URL
+            const API_URL = "https://script.google.com/macros/s/AKfycbxxINZvgAnE_SFVf_dpj8kNuvughXmM6deYfq52bPwfe8HAu4BBsFsveL14vGMokErU/exec";
+            
+            try {
+                // 3. Fetch the link map JSON from your Google Sheet API
+                const response = await fetch(API_URL);
+                const linkMap = await response.json();
+                const longUrl = linkMap[linkID];
+
+                if (longUrl) {
+                    // 4. Log the click silently to your Google Form
+                    const timestamp = new Date().toISOString();
+                    const formUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
+                    
+                    // Fire-and-forget request using no-cors to bypass CORS blocks completely
+                    fetch(formUrl, { mode: 'no-cors' }).catch(() => {});
+
+                    // 5. Wait 0.1 seconds (100ms) then execute the redirect
+                    setTimeout(() => {
+                        window.location.replace(longUrl);
+                    }, 100);
+                } else {
+                    // Show a clean 404 message if the link ID doesn't exist in the sheet
+                    document.getElementById('content').innerHTML = `
+                        <h2>404 - FoxLINK Not Found</h2>
+                        <p>The short link <strong>/${linkID}</strong> does not exist or has been removed.</p>
+                        <p><a href="/">Create a new FoxLINK</a></p>
+                    `;
+                }
+            } catch (error) {
+                console.error("Redirect error:", error);
+                document.getElementById('content').innerHTML = `
+                    <h2>Error</h2>
+                    <p>Could not resolve this FoxLINK. Please check your connection or try again later.</p>
+                `;
+            }
+        }
+
+        handleRedirect();
+    </script>
+</body>
+</html>
