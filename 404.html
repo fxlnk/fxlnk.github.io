@@ -39,6 +39,9 @@
     </div>
 
     <script>
+        // Start high-precision timer right when the page script executes
+        const startTime = performance.now();
+
         async function handleRedirect() {
             const linkID = window.location.pathname.replace(/^\/+/, '');
             
@@ -47,18 +50,27 @@
                 return;
             }
 
-            // Helper function to handle tracking and the strict 0.5s redirect cap
+            // Helper function to handle tracking, performance logging, and the strict 0.5s redirect cap
             function executeRedirect(url) {
                 const timestamp = new Date().toISOString();
-                const formUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
                 
-                // Silent click log
-                fetch(formUrl, { mode: 'no-cors' }).catch(() => {});
+                // 1. Original click tracker form
+                const clickFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
+                fetch(clickFormUrl, { mode: 'no-cors' }).catch(() => {});
 
-                // Enforce a strict 500ms (0.5s) minimum delay to prevent DNS auto-fill issues in Chrome
+                // 2. New performance/response time tracker form
+                const responseTimeMS = Math.round(performance.now() - startTime);
+                const perfFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLScxt_H77vasdjZy-nOgJEnoPq163X_R1O0Fr4QoKoB3NnHJbQ/formResponse?entry.1229030599=${encodeURIComponent(linkID)}&entry.1386678927=${encodeURIComponent(responseTimeMS)}`;
+                fetch(perfFormUrl, { mode: 'no-cors' }).catch(() => {});
+
+                // Enforce the strict 500ms (0.5s) minimum delay to prevent DNS auto-fill issues in Chrome
+                // We factor in how long the script took to fetch data first, ensuring a smooth minimum cap
+                const elapsed = performance.now() - startTime;
+                const remainingDelay = Math.max(0, 500 - elapsed);
+
                 setTimeout(() => {
                     window.location.replace(url);
-                }, 500);
+                }, remainingDelay);
             }
 
             const API_URL = "https://script.google.com/macros/s/AKfycbxxINZvgAnE_SFVf_dpj8kNuvughXmM6deYfq52bPwfe8HAu4BBsFsveL14vGMokErU/exec";
