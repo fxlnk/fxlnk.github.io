@@ -125,6 +125,41 @@
             opacity: 0.9;
         }
 
+        .leaderboard-section {
+            background: var(--card-bg);
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-top: 2rem;
+        }
+
+        .leaderboard-section h3 {
+            margin-top: 0;
+            color: var(--text);
+            font-size: 1.4rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #fafafa;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
         footer {
             text-align: center;
             padding: 2rem;
@@ -150,7 +185,7 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <h3 id="global-today">...</h3>
-                <p>Links Clicked Today</p>
+                <p>Clicks Today</p>
             </div>
             <div class="stat-card">
                 <h3 id="global-speed">...</h3>
@@ -164,12 +199,33 @@
                 <h3 id="global-total">...</h3>
                 <p>All-Time Clicks</p>
             </div>
+            <div class="stat-card">
+                <h3 id="global-links-count">...</h3>
+                <p>Total Active Links</p>
+            </div>
         </div>
 
-        <!-- Live Session Counter -->
+        <!-- Real Session Counter -->
         <div class="live-counter-banner">
             <h3 id="session-counter">0</h3>
-            <p>Links redirected across FoxLINK while you've been on this page</p>
+            <p>Links redirected while you've been on this page</p>
+        </div>
+
+        <!-- Top 5 Leaderboard -->
+        <div class="leaderboard-section">
+            <h3>Top 5 Links Leaderboard</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank & Link ID</th>
+                        <th>All-Time Clicks</th>
+                        <th>Avg Speed</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <tr><td colspan="3" style="text-align: center; color: var(--text-light);">Loading leaderboard...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -178,74 +234,106 @@
     </footer>
 
     <script>
-        // Track how many redirects happen globally while visitor is on this page
         let sessionRedirects = 0;
+        let initialTotalClicks = null;
 
         async function fetchGlobalStats() {
             try {
-                const API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec?t=analytics";
-                const res = await fetch(API_URL);
-                const analyticsMap = await res.json();
+                const BASE_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec";
+                const [analyticsRes, linksRes] = await Promise.all([
+                    fetch(`${BASE_URL}?t=analytics`),
+                    fetch(`${BASE_URL}?t=links`)
+                ]);
 
-                let totalClicks = 0;
+                const analyticsMap = await analyticsRes.json();
+                const linksMap = await linksRes.json();
+
+                let totalUniqueClicks = 0;
                 let todayClicks = 0;
                 let totalMS = 0;
                 let responseTimeCount = 0;
                 const now = new Date();
 
-                // Aggregate stats across all link IDs
+                const linkRankings = [];
+
                 Object.keys(analyticsMap).forEach(linkID => {
                     const data = analyticsMap[linkID];
                     const clicks = data.clicks || [];
                     const responseTimes = data.responseTimes || [];
 
-                    totalClicks += clicks.length > 0 ? clicks.length : responseTimes.length;
+                    // Deduplicate timestamps between clicks and responseTimes arrays
+                    const timestamps = new Set();
+                    clicks.forEach(c => { if (c.timestamp) timestamps.add(c.timestamp); });
+                    responseTimes.forEach(rt => { if (rt.timestamp) timestamps.add(rt.timestamp); });
 
-                    [...clicks, ...responseTimes].forEach(c => {
-                        if (c.timestamp) {
-                            const d = new Date(c.timestamp);
-                            if (d.toDateString() === now.toDateString()) {
-                                todayClicks++;
-                            }
-                        }
-                    });
+                    const linkTotal = timestamps.size;
+                    totalUniqueClicks += linkTotal;
 
+                    let linkMS = 0;
                     responseTimes.forEach(rt => {
                         if (rt.responseTimeMS) {
+                            linkMS += Number(rt.responseTimeMS);
                             totalMS += Number(rt.responseTimeMS);
                             responseTimeCount++;
                         }
                     });
+                    const linkAvgSpeed = responseTimes.length > 0 ? Math.round(linkMS / responseTimes.length) : 0;
+
+                    linkRankings.push({
+                        linkID: linkID,
+                        clicks: linkTotal,
+                        avgSpeed: linkAvgSpeed
+                    });
+
+                    timestamps.forEach(ts => {
+                        const d = new Date(ts);
+                        if (d.toDateString() === now.toDateString()) {
+                            todayClicks++;
+                        }
+                    });
                 });
 
-                // Update UI elements
-                document.getElementById('global-total').textContent = totalClicks;
+                if (initialTotalClicks === null) {
+                    initialTotalClicks = totalUniqueClicks;
+                } else {
+                    sessionRedirects = Math.max(0, totalUniqueClicks - initialTotalClicks);
+                }
+
+                document.getElementById('global-total').textContent = totalUniqueClicks;
                 document.getElementById('global-today').textContent = todayClicks;
+                document.getElementById('global-links-count').textContent = Object.keys(linksMap).length;
+                document.getElementById('session-counter').textContent = sessionRedirects;
 
                 const avgSpeed = responseTimeCount > 0 ? Math.round(totalMS / responseTimeCount) : 0;
                 document.getElementById('global-speed').textContent = avgSpeed + 'ms';
 
-                // Format total accumulated redirect time
                 const totalSeconds = totalMS / 1000;
                 let formattedTime = totalSeconds < 60 ? totalSeconds.toFixed(1) + 's' : `${Math.floor(totalSeconds / 60)}m ${Math.round(totalSeconds % 60)}s`;
                 document.getElementById('global-total-time').textContent = formattedTime;
+
+                linkRankings.sort((a, b) => b.clicks - a.clicks);
+                const top5 = linkRankings.slice(0, 5);
+
+                const tbody = document.getElementById('leaderboard-body');
+                tbody.innerHTML = '';
+                top5.forEach((item, index) => {
+                    const row = `
+                        <tr>
+                            <td><strong>#${index + 1}</strong> /${item.linkID}</td>
+                            <td>${item.clicks} clicks</td>
+                            <td>${item.avgSpeed}ms</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
 
             } catch (err) {
                 console.error("Failed to load global stats:", err);
             }
         }
 
-        // Simulate live network activity incrementing while user browses
-        function initLiveCounter() {
-            setInterval(() => {
-                // Randomly simulate a network redirect event every 8 to 15 seconds
-                sessionRedirects++;
-                document.getElementById('session-counter').textContent = sessionRedirects;
-            }, 10000);
-        }
-
         fetchGlobalStats();
-        initLiveCounter();
+        setInterval(fetchGlobalStats, 15000);
     </script>
 </body>
 </html>
