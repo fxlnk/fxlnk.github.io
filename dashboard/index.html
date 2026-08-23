@@ -123,7 +123,7 @@
         .stat-card h3 {
             margin: 0;
             color: var(--primary);
-            font-size: 2rem;
+            font-size: 1.8rem;
         }
 
         .stat-card p {
@@ -147,6 +147,7 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
         }
 
         th, td {
@@ -186,11 +187,11 @@
             <p>View detailed click counts, peak traffic times, and response speeds.</p>
             <div class="search-box">
                 <input type="text" id="link-input" placeholder="e.g. FoxURL">
-                <button onclick="loadAnalytics()">Search</button>
+                <button onclick="triggerSearch()">Search</button>
             </div>
         </div>
 
-        <div id="loading" class="loading">Loading analytics data from Google Sheets...</div>
+        <div id="loading" class="loading">Fetching analytics data...</div>
 
         <!-- Analytics Output Section -->
         <div id="analytics-section" class="analytics-content">
@@ -213,6 +214,10 @@
                 <div class="stat-card">
                     <h3 id="stat-speed">0ms</h3>
                     <p>Avg Response Time</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-total-time">0s</h3>
+                    <p>Total Redirect Time</p>
                 </div>
             </div>
 
@@ -241,24 +246,36 @@
     <script>
         let hourlyChartInstance = null;
 
-        async function loadAnalytics() {
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const queryID = params.get('q');
+            if (queryID) {
+                document.getElementById('link-input').value = queryID;
+                loadAnalytics(queryID);
+            }
+        });
+
+        function triggerSearch() {
             const linkID = document.getElementById('link-input').value.trim();
             if (!linkID) {
                 alert("Please enter a Link ID.");
                 return;
             }
+            const newUrl = `${window.location.pathname}?q=${encodeURIComponent(linkID)}`;
+            window.history.pushState({path: newUrl}, '', newUrl);
+            loadAnalytics(linkID);
+        }
 
+        async function loadAnalytics(linkID) {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('analytics-section').style.display = 'none';
 
             try {
-                // Your unified Apps Script endpoint requesting analytics data (?t=analytics)
                 const API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec?t=analytics";
                 
                 const res = await fetch(API_URL);
                 const analyticsMap = await res.json();
                 
-                // Find data matching this specific link ID (case-insensitive check)
                 let matchedKey = Object.keys(analyticsMap).find(k => k.toLowerCase() === linkID.toLowerCase());
                 
                 document.getElementById('loading').style.display = 'none';
@@ -269,10 +286,12 @@
                 }
 
                 const linkData = analyticsMap[matchedKey];
-                const clicks = linkData.clicks || [];
                 const responseTimes = linkData.responseTimes || [];
+                const clicks = linkData.clicks || [];
 
-                if (clicks.length === 0 && responseTimes.length === 0) {
+                const masterLogs = responseTimes.length > 0 ? responseTimes : clicks;
+
+                if (masterLogs.length === 0) {
                     alert("No activity recorded for this Link ID yet!");
                     return;
                 }
@@ -280,52 +299,66 @@
                 document.getElementById('display-id').textContent = matchedKey;
                 document.getElementById('analytics-section').style.display = 'block';
 
-                // Calculate metrics
                 const now = new Date();
-                const total = clicks.length > 0 ? clicks.length : responseTimes.length;
+                const total = masterLogs.length;
                 
-                const todayCount = [...clicks, ...responseTimes].filter(c => {
+                const todayCount = masterLogs.filter(c => {
                     if (!c.timestamp) return false;
                     return new Date(c.timestamp).toDateString() === now.toDateString();
                 }).length;
 
-                const monthCount = [...clicks, ...responseTimes].filter(c => {
+                const monthCount = masterLogs.filter(c => {
                     if (!c.timestamp) return false;
                     const d = new Date(c.timestamp);
                     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 }).length;
 
-                // Calculate average response time
                 let avgSpeed = 0;
+                let totalTimeMS = 0;
+
                 if (responseTimes.length > 0) {
-                    const totalMS = responseTimes.reduce((acc, curr) => acc + Number(curr.responseTimeMS || 0), 0);
-                    avgSpeed = Math.round(totalMS / responseTimes.length);
+                    totalTimeMS = responseTimes.reduce((acc, curr) => acc + Number(curr.responseTimeMS || 0), 0);
+                    avgSpeed = Math.round(totalTimeMS / responseTimes.length);
+                }
+
+                // Format total accumulated redirect time nicely
+                let formattedTotalTime = "";
+                const totalSeconds = totalTimeMS / 1000;
+                if (totalSeconds < 60) {
+                    formattedTotalTime = totalSeconds.toFixed(1) + 's';
+                } else if (totalSeconds < 3600) {
+                    const mins = Math.floor(totalSeconds / 60);
+                    const secs = Math.round(totalSeconds % 60);
+                    formattedTotalTime = `${mins}m ${secs}s`;
+                } else {
+                    const hours = Math.floor(totalSeconds / 3600);
+                    const mins = Math.floor((totalSeconds % 3600) / 60);
+                    formattedTotalTime = `${hours}h ${mins}m`;
                 }
 
                 document.getElementById('stat-total').textContent = total;
                 document.getElementById('stat-month').textContent = monthCount;
                 document.getElementById('stat-today').textContent = todayCount;
                 document.getElementById('stat-speed').textContent = avgSpeed + 'ms';
+                document.getElementById('stat-total-time').textContent = formattedTotalTime;
 
-                // Combine logs for table display
-                const combinedLogs = [...responseTimes].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const sortedLogs = [...masterLogs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                // Render Table
                 const tableBody = document.getElementById('table-body');
                 tableBody.innerHTML = '';
-                if (combinedLogs.length === 0) {
+                if (sortedLogs.length === 0) {
                     tableBody.innerHTML = `<tr><td colspan="2" style="text-align: center;">No detailed logs available</td></tr>`;
                 } else {
-                    combinedLogs.slice(0, 10).forEach(log => {
+                    sortedLogs.slice(0, 25).forEach(log => {
                         const formattedDate = log.timestamp ? new Date(log.timestamp).toUTCString() : "Unknown Time";
-                        const row = `<tr><td>${formattedDate}</td><td>${log.responseTimeMS || 0}ms</td></tr>`;
+                        const rt = log.responseTimeMS !== undefined ? log.responseTimeMS + 'ms' : 'N/A';
+                        const row = `<tr><td>${formattedDate}</td><td>${rt}</td></tr>`;
                         tableBody.innerHTML += row;
                     });
                 }
 
-                // Render Chart (Clicks by Hour of Day)
                 const hours = Array(24).fill(0);
-                [...clicks, ...responseTimes].forEach(c => {
+                masterLogs.forEach(c => {
                     if (c.timestamp) {
                         const hour = new Date(c.timestamp).getHours();
                         if (!isNaN(hour)) hours[hour]++;
@@ -358,7 +391,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('loading').style.display = 'none';
-                alert("Failed to load analytics from Google Sheets.");
+                alert("Failed to load analytics data.");
             }
         }
     </script>
