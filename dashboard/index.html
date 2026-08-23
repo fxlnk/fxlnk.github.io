@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoxLINK Analytics Dashboard</title>
+    <!-- Include Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #ff5722;
+            --primary-hover: #e64a19;
+            --bg: #f4f4f9;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --text-light: #666666;
+            --border: #dddddd;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background: var(--card-bg);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            color: var(--primary);
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        header a {
+            color: var(--text-light);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        header a:hover {
+            color: var(--primary);
+        }
+
+        .main-container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .search-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 0.5rem;
+            max-width: 500px;
+            margin: 1rem auto 0 auto;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .analytics-content {
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 2rem;
+        }
+
+        .stat-card p {
+            margin: 5px 0 0 0;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #fafafa;
+            font-weight: 600;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>FoxLINK Analytics</h1>
+        <a href="/">← Back to Home</a>
+    </header>
+
+    <div class="main-container">
+        <!-- Search Section -->
+        <div class="search-card">
+            <h2>Enter your FoxLINK ID</h2>
+            <p>View detailed click counts, peak traffic times, and response speeds.</p>
+            <div class="search-box">
+                <input type="text" id="link-input" placeholder="e.g. FoxURL">
+                <button onclick="loadAnalytics()">Search</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Loading analytics data from Google Sheets...</div>
+
+        <!-- Analytics Output Section -->
+        <div id="analytics-section" class="analytics-content">
+            <h2 id="target-title" style="margin-bottom: 1rem;">Stats for /<span id="display-id"></span></h2>
+            
+            <!-- Quick Metrics Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3 id="stat-total">0</h3>
+                    <p>Total Clicks</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-month">0</h3>
+                    <p>Clicks This Month</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-today">0</h3>
+                    <p>Clicks Today</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-speed">0ms</h3>
+                    <p>Avg Response Time</p>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="chart-container">
+                <h3>Clicks by Hour of Day (Peak Traffic)</h3>
+                <canvas id="hourlyChart"></canvas>
+            </div>
+
+            <!-- Recent Log Table -->
+            <h3>Recent Click Activity & Response Times</h3>
+            <table id="clicks-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp (UTC)</th>
+                        <th>Response Time</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let hourlyChartInstance = null;
+
+        async function loadAnalytics() {
+            const linkID = document.getElementById('link-input').value.trim();
+            if (!linkID) {
+                alert("Please enter a Link ID.");
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analytics-section').style.display = 'none';
+
+            try {
+                // Your unified Apps Script endpoint requesting analytics data (?t=analytics)
+                const API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec?t=analytics";
+                
+                const res = await fetch(API_URL);
+                const analyticsMap = await res.json();
+                
+                // Find data matching this specific link ID (case-insensitive check)
+                let matchedKey = Object.keys(analyticsMap).find(k => k.toLowerCase() === linkID.toLowerCase());
+                
+                document.getElementById('loading').style.display = 'none';
+
+                if (!matchedKey || !analyticsMap[matchedKey]) {
+                    alert("No data found for this Link ID yet!");
+                    return;
+                }
+
+                const linkData = analyticsMap[matchedKey];
+                const clicks = linkData.clicks || [];
+                const responseTimes = linkData.responseTimes || [];
+
+                if (clicks.length === 0 && responseTimes.length === 0) {
+                    alert("No activity recorded for this Link ID yet!");
+                    return;
+                }
+
+                document.getElementById('display-id').textContent = matchedKey;
+                document.getElementById('analytics-section').style.display = 'block';
+
+                // Calculate metrics
+                const now = new Date();
+                const total = clicks.length > 0 ? clicks.length : responseTimes.length;
+                
+                const todayCount = [...clicks, ...responseTimes].filter(c => {
+                    if (!c.timestamp) return false;
+                    return new Date(c.timestamp).toDateString() === now.toDateString();
+                }).length;
+
+                const monthCount = [...clicks, ...responseTimes].filter(c => {
+                    if (!c.timestamp) return false;
+                    const d = new Date(c.timestamp);
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }).length;
+
+                // Calculate average response time
+                let avgSpeed = 0;
+                if (responseTimes.length > 0) {
+                    const totalMS = responseTimes.reduce((acc, curr) => acc + Number(curr.responseTimeMS || 0), 0);
+                    avgSpeed = Math.round(totalMS / responseTimes.length);
+                }
+
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-month').textContent = monthCount;
+                document.getElementById('stat-today').textContent = todayCount;
+                document.getElementById('stat-speed').textContent = avgSpeed + 'ms';
+
+                // Combine logs for table display
+                const combinedLogs = [...responseTimes].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                // Render Table
+                const tableBody = document.getElementById('table-body');
+                tableBody.innerHTML = '';
+                if (combinedLogs.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="2" style="text-align: center;">No detailed logs available</td></tr>`;
+                } else {
+                    combinedLogs.slice(0, 10).forEach(log => {
+                        const formattedDate = log.timestamp ? new Date(log.timestamp).toUTCString() : "Unknown Time";
+                        const row = `<tr><td>${formattedDate}</td><td>${log.responseTimeMS || 0}ms</td></tr>`;
+                        tableBody.innerHTML += row;
+                    });
+                }
+
+                // Render Chart (Clicks by Hour of Day)
+                const hours = Array(24).fill(0);
+                [...clicks, ...responseTimes].forEach(c => {
+                    if (c.timestamp) {
+                        const hour = new Date(c.timestamp).getHours();
+                        if (!isNaN(hour)) hours[hour]++;
+                    }
+                });
+
+                const ctx = document.getElementById('hourlyChart').getContext('2d');
+                if (hourlyChartInstance) hourlyChartInstance.destroy();
+
+                hourlyChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                        datasets: [{
+                            label: 'Clicks',
+                            data: hours,
+                            borderColor: '#ff5722',
+                            backgroundColor: 'rgba(255, 87, 34, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    }
+                });
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').style.display = 'none';
+                alert("Failed to load analytics from Google Sheets.");
+            }
+        }
+    </script>
+</body>
+</html>
