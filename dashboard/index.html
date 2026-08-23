@@ -281,7 +281,6 @@
             try {
                 const BASE_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec";
                 
-                // Fetch both analytics data and links map in parallel to calculate link length ratio
                 const [analyticsRes, linksRes] = await Promise.all([
                     fetch(`${BASE_URL}?t=analytics`),
                     fetch(`${BASE_URL}?t=links`)
@@ -303,15 +302,28 @@
                 const responseTimes = linkData.responseTimes || [];
                 const clicks = linkData.clicks || [];
 
-                // Combine both click logs and response times to form the complete master list
-                // (using timestamps to deduplicate or gathering all events)
-                let masterLogs = [...clicks];
-                responseTimes.forEach(rt => {
-                    // Avoid duplicating if timestamp matches closely, or just push if unique
-                    masterLogs.push({ timestamp: rt.timestamp, responseTimeMS: rt.responseTimeMS });
+                // Correctly deduplicate or merge logs so total count matches reality
+                const logMap = new Map();
+                
+                // Add clicks first
+                clicks.forEach(c => {
+                    if (c.timestamp) {
+                        logMap.set(c.timestamp, { timestamp: c.timestamp, responseTimeMS: null });
+                    }
                 });
 
-                // Fallback to whichever array has data if one is empty
+                // Merge response times (attaching response times to matching timestamp or adding new)
+                responseTimes.forEach(rt => {
+                    if (rt.timestamp) {
+                        if (logMap.has(rt.timestamp)) {
+                            logMap.get(rt.timestamp).responseTimeMS = rt.responseTimeMS;
+                        } else {
+                            logMap.set(rt.timestamp, { timestamp: rt.timestamp, responseTimeMS: rt.responseTimeMS });
+                        }
+                    }
+                });
+
+                let masterLogs = Array.from(logMap.values());
                 if (masterLogs.length === 0) {
                     masterLogs = responseTimes.length > 0 ? responseTimes : clicks;
                 }
@@ -360,7 +372,6 @@
                     formattedTotalTime = `${hours}h ${mins}m`;
                 }
 
-                // Sort logs newest first to find the last click and populate table
                 const sortedLogs = [...masterLogs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 
                 let lastClickText = "Never";
@@ -369,17 +380,20 @@
                     lastClickText = lastDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
                 }
 
-                // Calculate Length Ratio
+                // Calculate Length Ratio accurately (~61% or proportional to target URL)
                 let lengthRatioText = "N/A";
                 const targetUrl = linksMap[matchedKey];
                 if (targetUrl) {
+                    // Compare short ID length vs full target URL length
                     const shortLen = matchedKey.length;
                     const longLen = targetUrl.length;
-                    const diff = longLen - shortLen;
-                    const percent = Math.abs(Math.round((diff / longLen) * 100));
                     if (longLen > shortLen) {
+                        const diff = longLen - shortLen;
+                        const percent = Math.round((diff / longLen) * 100);
                         lengthRatioText = `${percent}% shorter`;
                     } else {
+                        const diff = shortLen - longLen;
+                        const percent = Math.round((diff / shortLen) * 100);
                         lengthRatioText = `${percent}% longer`;
                     }
                 }
@@ -399,7 +413,7 @@
                 } else {
                     sortedLogs.slice(0, 25).forEach(log => {
                         const formattedDate = log.timestamp ? new Date(log.timestamp).toUTCString() : "Unknown Time";
-                        const rt = log.responseTimeMS !== undefined ? log.responseTimeMS + 'ms' : 'N/A';
+                        const rt = log.responseTimeMS !== null && log.responseTimeMS !== undefined ? log.responseTimeMS + 'ms' : 'N/A';
                         const row = `<tr><td>${formattedDate}</td><td>${rt}</td></tr>`;
                         tableBody.innerHTML += row;
                     });
