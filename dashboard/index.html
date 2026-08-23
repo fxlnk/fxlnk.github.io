@@ -123,7 +123,7 @@
         .stat-card h3 {
             margin: 0;
             color: var(--primary);
-            font-size: 1.8rem;
+            font-size: 1.5rem;
         }
 
         .stat-card p {
@@ -219,6 +219,14 @@
                     <h3 id="stat-total-time">0s</h3>
                     <p>Total Redirect Time</p>
                 </div>
+                <div class="stat-card">
+                    <h3 id="stat-last-click">Never</h3>
+                    <p>Last Link Click</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-length-ratio">0%</h3>
+                    <p>Length Comparison</p>
+                </div>
             </div>
 
             <!-- Chart -->
@@ -271,10 +279,16 @@
             document.getElementById('analytics-section').style.display = 'none';
 
             try {
-                const API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec?t=analytics";
+                const BASE_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec";
                 
-                const res = await fetch(API_URL);
-                const analyticsMap = await res.json();
+                // Fetch both analytics data and links map in parallel to calculate link length ratio
+                const [analyticsRes, linksRes] = await Promise.all([
+                    fetch(`${BASE_URL}?t=analytics`),
+                    fetch(`${BASE_URL}?t=links`)
+                ]);
+
+                const analyticsMap = await analyticsRes.json();
+                const linksMap = await linksRes.json();
                 
                 let matchedKey = Object.keys(analyticsMap).find(k => k.toLowerCase() === linkID.toLowerCase());
                 
@@ -289,7 +303,18 @@
                 const responseTimes = linkData.responseTimes || [];
                 const clicks = linkData.clicks || [];
 
-                const masterLogs = responseTimes.length > 0 ? responseTimes : clicks;
+                // Combine both click logs and response times to form the complete master list
+                // (using timestamps to deduplicate or gathering all events)
+                let masterLogs = [...clicks];
+                responseTimes.forEach(rt => {
+                    // Avoid duplicating if timestamp matches closely, or just push if unique
+                    masterLogs.push({ timestamp: rt.timestamp, responseTimeMS: rt.responseTimeMS });
+                });
+
+                // Fallback to whichever array has data if one is empty
+                if (masterLogs.length === 0) {
+                    masterLogs = responseTimes.length > 0 ? responseTimes : clicks;
+                }
 
                 if (masterLogs.length === 0) {
                     alert("No activity recorded for this Link ID yet!");
@@ -321,7 +346,6 @@
                     avgSpeed = Math.round(totalTimeMS / responseTimes.length);
                 }
 
-                // Format total accumulated redirect time nicely
                 let formattedTotalTime = "";
                 const totalSeconds = totalTimeMS / 1000;
                 if (totalSeconds < 60) {
@@ -336,13 +360,37 @@
                     formattedTotalTime = `${hours}h ${mins}m`;
                 }
 
+                // Sort logs newest first to find the last click and populate table
+                const sortedLogs = [...masterLogs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                let lastClickText = "Never";
+                if (sortedLogs.length > 0 && sortedLogs[0].timestamp) {
+                    const lastDate = new Date(sortedLogs[0].timestamp);
+                    lastClickText = lastDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+                }
+
+                // Calculate Length Ratio
+                let lengthRatioText = "N/A";
+                const targetUrl = linksMap[matchedKey];
+                if (targetUrl) {
+                    const shortLen = matchedKey.length;
+                    const longLen = targetUrl.length;
+                    const diff = longLen - shortLen;
+                    const percent = Math.abs(Math.round((diff / longLen) * 100));
+                    if (longLen > shortLen) {
+                        lengthRatioText = `${percent}% shorter`;
+                    } else {
+                        lengthRatioText = `${percent}% longer`;
+                    }
+                }
+
                 document.getElementById('stat-total').textContent = total;
                 document.getElementById('stat-month').textContent = monthCount;
                 document.getElementById('stat-today').textContent = todayCount;
                 document.getElementById('stat-speed').textContent = avgSpeed + 'ms';
                 document.getElementById('stat-total-time').textContent = formattedTotalTime;
-
-                const sortedLogs = [...masterLogs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                document.getElementById('stat-last-click').textContent = lastClickText;
+                document.getElementById('stat-length-ratio').textContent = lengthRatioText;
 
                 const tableBody = document.getElementById('table-body');
                 tableBody.innerHTML = '';
