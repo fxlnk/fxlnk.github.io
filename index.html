@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <title>FoxLINK - Lightning Fast URL Shortener & Analytics</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <style>
         :root {
             --primary: #ff5722;
@@ -37,6 +37,9 @@
             color: var(--primary);
             margin: 0;
             font-size: 1.6rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .dashboard-btn {
@@ -56,11 +59,11 @@
 
         .hero {
             text-align: center;
-            padding: 3rem 1rem 1.5rem 1rem;
+            padding: 2.5rem 1rem 1.5rem 1rem;
         }
 
         .hero h2 {
-            font-size: 2.5rem;
+            font-size: 2.3rem;
             margin-bottom: 0.5rem;
             color: var(--text);
         }
@@ -78,16 +81,116 @@
             padding: 0 1rem;
         }
 
+        /* Shortener Box */
+        .shortener-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+
+        .shortener-card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--text);
+            text-align: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            min-width: 250px;
+            display: flex;
+            align-items: center;
+            background: #fafafa;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .prefix {
+            padding: 0.75rem;
+            background: #f0f0f4;
+            color: var(--text-light);
+            font-size: 0.95rem;
+            border-right: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .url-input {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .form-msg {
+            text-align: center;
+            margin-top: 1rem;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .success-box {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-msg {
+            color: #c62828;
+        }
+
+        .success-msg {
+            color: #2e7d32;
+        }
+
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 1.2rem;
             margin-top: 2rem;
         }
 
         .stat-card {
             background: var(--card-bg);
-            padding: 1.8rem;
+            padding: 1.5rem;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             text-align: center;
@@ -96,13 +199,13 @@
         .stat-card h3 {
             margin: 0;
             color: var(--primary);
-            font-size: 2rem;
+            font-size: 1.8rem;
         }
 
         .stat-card p {
             margin: 8px 0 0 0;
             color: var(--text-light);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
 
         .live-counter-banner {
@@ -137,7 +240,7 @@
         .leaderboard-section h3 {
             margin-top: 0;
             color: var(--text);
-            font-size: 1.4rem;
+            font-size: 1.3rem;
         }
 
         table {
@@ -172,14 +275,39 @@
 <body>
 
     <header>
-        <h1>FoxLINK</h1>
+        <h1>
+            <svg width="28" height="28" viewBox="0 0 200 200"><path d="M 40 20 L 40 140 L 110 140 L 110 115 L 65 115 L 65 20 Z" fill="#ff5722"/><path d="M 65 20 L 140 20 L 140 45 L 90 45 L 90 70 L 130 70 L 130 95 L 90 95 L 90 140 L 65 140 Z" fill="#e64a19"/></svg>
+            FoxLINK
+        </h1>
         <a href="/dashboard/" class="dashboard-btn">Dashboard →</a>
     </header>
 
     <div class="main-container">
         <div class="hero">
             <h2>Lightning Fast Redirections</h2>
-            <p>Shorten your links, track real-time engagement, and experience high-speed performance powered by Google Sheets.</p>
+            <p>Shorten your links, track real-time engagement, and experience high-speed performance.</p>
+        </div>
+
+        <!-- Shortener Tool Card with Duplicate Protection -->
+        <div class="shortener-card">
+            <h3>Create a New FoxLink</h3>
+            <form id="shorten-form" onsubmit="handleShorten(event)">
+                <div class="input-group">
+                    <input type="url" id="target-url" class="url-input" placeholder="Enter target URL (e.g. https://example.com)" required>
+                </div>
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <span class="prefix">fxlnk.github.io/</span>
+                        <input type="text" id="custom-id" placeholder="custom-id" required>
+                    </div>
+                </div>
+                <button type="submit" id="submit-btn">Shorten Link</button>
+                <div id="form-msg" class="form-msg"></div>
+            </form>
+            <div id="success-box" class="success-box">
+                <strong>Success!</strong> Your short link is ready:<br>
+                <a id="created-link-anchor" href="#" target="_blank" style="color: #2e7d32; font-weight: bold; font-size: 1.1rem;"></a>
+            </div>
         </div>
 
         <!-- Global Stats Grid -->
@@ -237,17 +365,19 @@
     <script>
         let sessionRedirects = 0;
         let initialTotalClicks = null;
+        let cachedLinksMap = {};
+
+        const BASE_API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec";
 
         async function fetchGlobalStats() {
             try {
-                const BASE_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec";
                 const [analyticsRes, linksRes] = await Promise.all([
-                    fetch(`${BASE_URL}?t=analytics`),
-                    fetch(`${BASE_URL}?t=links`)
+                    fetch(`${BASE_API_URL}?t=analytics`),
+                    fetch(`${BASE_API_URL}?t=links`)
                 ]);
 
                 const analyticsMap = await analyticsRes.json();
-                const linksMap = await linksRes.json();
+                cachedLinksMap = await linksRes.json();
 
                 let totalUniqueClicks = 0;
                 let todayClicks = 0;
@@ -262,7 +392,6 @@
                     const clicks = data.clicks || [];
                     const responseTimes = data.responseTimes || [];
 
-                    // Deduplicate timestamps between clicks and responseTimes arrays
                     const timestamps = new Set();
                     clicks.forEach(c => { if (c.timestamp) timestamps.add(c.timestamp); });
                     responseTimes.forEach(rt => { if (rt.timestamp) timestamps.add(rt.timestamp); });
@@ -302,7 +431,7 @@
 
                 document.getElementById('global-total').textContent = totalUniqueClicks;
                 document.getElementById('global-today').textContent = todayClicks;
-                document.getElementById('global-links-count').textContent = Object.keys(linksMap).length;
+                document.getElementById('global-links-count').textContent = Object.keys(cachedLinksMap).length;
                 document.getElementById('session-counter').textContent = sessionRedirects;
 
                 const avgSpeed = responseTimeCount > 0 ? Math.round(totalMS / responseTimeCount) : 0;
@@ -330,6 +459,62 @@
 
             } catch (err) {
                 console.error("Failed to load global stats:", err);
+            }
+        }
+
+        async function handleShorten(event) {
+            event.preventDefault();
+            const targetUrl = document.getElementById('target-url').value.trim();
+            const customId = document.getElementById('custom-id').value.trim();
+            const msgEl = document.getElementById('form-msg');
+            const successBox = document.getElementById('success-box');
+
+            msgEl.className = "form-msg";
+            msgEl.textContent = "Checking link availability...";
+            successBox.style.display = 'none';
+
+            // Check if ID already exists (case-insensitive check)
+            const exists = Object.keys(cachedLinksMap).some(k => k.toLowerCase() === customId.toLowerCase());
+            if (exists) {
+                msgEl.className = "form-msg error-msg";
+                msgEl.textContent = `Error: The link ID "${customId}" is already taken. Please choose another one.`;
+                return;
+            }
+
+            msgEl.textContent = "Adding link to FoxLINK...";
+
+            // Construct Google Form submission URL
+            const formURL = `https://docs.google.com/forms/d/e/1FAIpQLScoczSKs-7nBUvj_3vyy7LmRzvLL5WKASwWryP_OAavf-daUg/viewform?entry.2013008855=${encodeURIComponent(customId)}&entry.926875153=${encodeURIComponent(targetUrl)}`;
+
+            try {
+                // Submit silently using an invisible iframe to prevent redirection page break
+                let iframe = document.getElementById('hidden-iframe');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.id = 'hidden-iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+                iframe.src = formURL;
+
+                msgEl.textContent = "";
+                const finalLink = `https://fxlnk.github.io/${customId}`;
+                const anchor = document.getElementById('created-link-anchor');
+                anchor.href = finalLink;
+                anchor.textContent = finalLink;
+                successBox.style.display = 'block';
+
+                // Reset form fields
+                document.getElementById('target-url').value = '';
+                document.getElementById('custom-id').value = '';
+
+                // Refresh stats after a few seconds to reflect new link count
+                setTimeout(fetchGlobalStats, 4000);
+
+            } catch (err) {
+                console.error(err);
+                msgEl.className = "form-msg error-msg";
+                msgEl.textContent = "Failed to submit link. Please try again.";
             }
         }
 
