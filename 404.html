@@ -54,17 +54,16 @@
             function executeRedirect(url) {
                 const timestamp = new Date().toISOString();
                 
-                // 1. Original click tracker form
+                // 1. Original click tracker form submission
                 const clickFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
                 fetch(clickFormUrl, { mode: 'no-cors' }).catch(() => {});
 
-                // 2. New performance/response time tracker form
+                // 2. Response time tracker form submission
                 const responseTimeMS = Math.round(performance.now() - startTime);
                 const perfFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLScxt_H77vasdjZy-nOgJEnoPq163X_R1O0Fr4QoKoB3NnHJbQ/formResponse?entry.1229030599=${encodeURIComponent(linkID)}&entry.1386678927=${encodeURIComponent(responseTimeMS)}`;
                 fetch(perfFormUrl, { mode: 'no-cors' }).catch(() => {});
 
                 // Enforce the strict 500ms (0.5s) minimum delay to prevent DNS auto-fill issues in Chrome
-                // We factor in how long the script took to fetch data first, ensuring a smooth minimum cap
                 const elapsed = performance.now() - startTime;
                 const remainingDelay = Math.max(0, 500 - elapsed);
 
@@ -73,7 +72,8 @@
                 }, remainingDelay);
             }
 
-            const API_URL = "https://script.google.com/macros/s/AKfycbxxINZvgAnE_SFVf_dpj8kNuvughXmM6deYfq52bPwfe8HAu4BBsFsveL14vGMokErU/exec";
+            // Your unified Apps Script endpoint requesting the link map (?t=links)
+            const API_URL = "https://script.google.com/macros/s/AKfycbwUKiKqL2ahc4AX-T5ZHXGvhDvj5OD13v5Xr5W3IWT_n6HVnmTknNxNvz9X3whbytWU/exec?t=links";
 
             try {
                 let linkMap = {};
