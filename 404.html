@@ -40,38 +40,59 @@
 
     <script>
         async function handleRedirect() {
-            // 1. Get the link ID from the URL path (e.g., "/fox" -> "fox")
             const linkID = window.location.pathname.replace(/^\/+/, '');
             
-            // If it's just the root page, redirect to home
             if (!linkID || linkID === 'index.html' || linkID === '404.html') {
                 window.location.href = '/';
                 return;
             }
 
-            // 2. Your Google Apps Script Web App API URL
+            // Helper function to handle tracking and the strict 0.5s redirect cap
+            function executeRedirect(url) {
+                const timestamp = new Date().toISOString();
+                const formUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
+                
+                // Silent click log
+                fetch(formUrl, { mode: 'no-cors' }).catch(() => {});
+
+                // Enforce a strict 500ms (0.5s) minimum delay to prevent DNS auto-fill issues in Chrome
+                setTimeout(() => {
+                    window.location.replace(url);
+                }, 500);
+            }
+
             const API_URL = "https://script.google.com/macros/s/AKfycbxxINZvgAnE_SFVf_dpj8kNuvughXmM6deYfq52bPwfe8HAu4BBsFsveL14vGMokErU/exec";
-            
+
             try {
-                // 3. Fetch the link map JSON from your Google Sheet API
-                const response = await fetch(API_URL);
-                const linkMap = await response.json();
-                const longUrl = linkMap[linkID];
+                let linkMap = {};
+                let cachedData = localStorage.getItem('fox_link_map');
+
+                if (cachedData) {
+                    try {
+                        linkMap = JSON.parse(cachedData);
+                    } catch (e) {
+                        linkMap = {};
+                    }
+                }
+
+                // Check if the linkID exists in our current local cache
+                let longUrl = linkMap[linkID];
+
+                // If not found in cache, fetch fresh data from Google Apps Script and overwrite cache
+                if (!longUrl) {
+                    const response = await fetch(API_URL);
+                    linkMap = await response.json();
+                    
+                    // Overwrite old cache with fresh data
+                    localStorage.setItem('fox_link_map', JSON.stringify(linkMap));
+                    
+                    // Check again after refreshing
+                    longUrl = linkMap[linkID];
+                }
 
                 if (longUrl) {
-                    // 4. Log the click silently to your Google Form
-                    const timestamp = new Date().toISOString();
-                    const formUrl = `https://docs.google.com/forms/d/e/1FAIpQLScF6clFT63nqrz_9VOViea88eK8eLIvzurkDa-6laRoU9SmJw/formResponse?entry.2059016958=${encodeURIComponent(timestamp)}&entry.334692480=${encodeURIComponent(linkID)}`;
-                    
-                    // Fire-and-forget request using no-cors to bypass CORS blocks completely
-                    fetch(formUrl, { mode: 'no-cors' }).catch(() => {});
-
-                    // 5. Wait 0.1 seconds (100ms) then execute the redirect
-                    setTimeout(() => {
-                        window.location.replace(longUrl);
-                    }, 100);
+                    executeRedirect(longUrl);
                 } else {
-                    // Show a clean 404 message if the link ID doesn't exist in the sheet
                     document.getElementById('content').innerHTML = `
                         <h2>404 - FoxLINK Not Found</h2>
                         <p>The short link <strong>/${linkID}</strong> does not exist or has been removed.</p>
