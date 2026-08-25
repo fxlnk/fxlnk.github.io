@@ -81,7 +81,7 @@
             padding: 0 1rem;
         }
 
-        /* Shortener Box */
+        /* Shortener Card */
         .shortener-card {
             background: var(--card-bg);
             padding: 2rem;
@@ -175,10 +175,6 @@
 
         .error-msg {
             color: #c62828;
-        }
-
-        .success-msg {
-            color: #2e7d32;
         }
 
         .stats-grid {
@@ -276,7 +272,11 @@
 
     <header>
         <h1>
-            <svg width="28" height="28" viewBox="0 0 200 200"><path d="M 40 20 L 40 140 L 110 140 L 110 115 L 65 115 L 65 20 Z" fill="#ff5722"/><path d="M 65 20 L 140 20 L 140 45 L 90 45 L 90 70 L 130 70 L 130 95 L 90 95 L 90 140 L 65 140 Z" fill="#e64a19"/></svg>
+            <!-- Logo Icon -->
+            <svg width="32" height="32" viewBox="0 0 200 200">
+                <path d="M 40 20 L 40 140 L 110 140 L 110 115 L 65 115 L 65 20 Z" fill="#ff5722"/>
+                <path d="M 65 20 L 140 20 L 140 45 L 90 45 L 90 70 L 130 70 L 130 95 L 90 95 L 90 140 L 65 140 Z" fill="#e64a19"/>
+            </svg>
             FoxLINK
         </h1>
         <a href="/dashboard/" class="dashboard-btn">Dashboard →</a>
@@ -288,7 +288,7 @@
             <p>Shorten your links, track real-time engagement, and experience high-speed performance.</p>
         </div>
 
-        <!-- Shortener Tool Card with Duplicate Protection -->
+        <!-- Shortener Tool Card -->
         <div class="shortener-card">
             <h3>Create a New FoxLink</h3>
             <form id="shorten-form" onsubmit="handleShorten(event)">
@@ -473,7 +473,7 @@
             msgEl.textContent = "Checking link availability...";
             successBox.style.display = 'none';
 
-            // Check if ID already exists (case-insensitive check)
+            // Check if ID already exists
             const exists = Object.keys(cachedLinksMap).some(k => k.toLowerCase() === customId.toLowerCase());
             if (exists) {
                 msgEl.className = "form-msg error-msg";
@@ -483,19 +483,42 @@
 
             msgEl.textContent = "Adding link to FoxLINK...";
 
-            // Construct Google Form submission URL
-            const formURL = `https://docs.google.com/forms/d/e/1FAIpQLScoczSKs-7nBUvj_3vyy7LmRzvLL5WKASwWryP_OAavf-daUg/viewform?entry.2013008855=${encodeURIComponent(customId)}&entry.926875153=${encodeURIComponent(targetUrl)}`;
-
             try {
-                // Submit silently using an invisible iframe to prevent redirection page break
+                let form = document.getElementById('hidden-form');
                 let iframe = document.getElementById('hidden-iframe');
+
                 if (!iframe) {
                     iframe = document.createElement('iframe');
+                    iframe.name = 'hidden-iframe';
                     iframe.id = 'hidden-iframe';
                     iframe.style.display = 'none';
                     document.body.appendChild(iframe);
                 }
-                iframe.src = formURL;
+
+                if (!form) {
+                    form = document.createElement('form');
+                    form.id = 'hidden-form';
+                    form.method = 'POST';
+                    form.action = 'https://docs.google.com/forms/d/e/1FAIpQLScoczSKs-7nBUvj_3vyy7LmRzvLL5WKASwWryP_OAavf-daUg/formResponse';
+                    form.target = 'hidden-iframe';
+                    document.body.appendChild(form);
+                } else {
+                    form.innerHTML = '';
+                }
+
+                const inputId = document.createElement('input');
+                inputId.type = 'hidden';
+                inputId.name = 'entry.2013008855';
+                inputId.value = customId;
+                form.appendChild(inputId);
+
+                const inputUrl = document.createElement('input');
+                inputUrl.type = 'hidden';
+                inputUrl.name = 'entry.926875153';
+                inputUrl.value = targetUrl;
+                form.appendChild(inputUrl);
+
+                form.submit();
 
                 msgEl.textContent = "";
                 const finalLink = `https://fxlnk.github.io/${customId}`;
@@ -504,11 +527,9 @@
                 anchor.textContent = finalLink;
                 successBox.style.display = 'block';
 
-                // Reset form fields
                 document.getElementById('target-url').value = '';
                 document.getElementById('custom-id').value = '';
 
-                // Refresh stats after a few seconds to reflect new link count
                 setTimeout(fetchGlobalStats, 4000);
 
             } catch (err) {
